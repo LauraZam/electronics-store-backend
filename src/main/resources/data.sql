@@ -79,3 +79,11 @@ VALUES
     ('ORD-2026-0003', 2, 'PAID', 1599.00, 0.00, 50.00, 1549.00, 'COURIER', NOW()),
     ('ORD-2026-0004', 2, 'SHIPPED', 399.00, 5.00, 0.00, 404.00, 'PICKUP_POINT', NOW()),
     ('ORD-2026-0005', 2, 'DELIVERED', 799.00, 0.00, 10.00, 789.00, 'POST_OFFICE', NOW());
+
+-- 8. SEED DELIVERY OPTIONS
+INSERT INTO delivery_options (name, code, description, base_price, free_threshold, estimated_days_min, estimated_days_max, is_active)
+VALUES
+    ('Standard Courier', 'COURIER', 'Door-to-door courier delivery', 10.00, 100.00, 2, 5, true),
+    ('Express Delivery', 'EXPRESS', 'Next day priority delivery', 25.00, 250.00, 1, 2, true),
+    ('Pickup Point', 'PICKUP_POINT', 'Self-pickup from parcel locker', 5.00, 50.00, 3, 7, true),
+    ('Post Office', 'POST_OFFICE', 'Standard postal service delivery', 7.00, 75.00, 4, 10, true);
