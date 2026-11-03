@@ -70,6 +70,9 @@ public class Product {
 
     private LocalDateTime updatedAt;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @PrePersist
     void onCreate() { createdAt = LocalDateTime.now(); updatedAt = createdAt; }
 

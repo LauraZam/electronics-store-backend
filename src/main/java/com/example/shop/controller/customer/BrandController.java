@@ -1,4 +1,4 @@
-package com.example.shop.controller;
+package com.example.shop.controller.customer;
 
 import com.example.shop.dto.response.BrandResponse;
 import com.example.shop.service.BrandService;

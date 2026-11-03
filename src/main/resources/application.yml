@@ -1,16 +1,21 @@
 spring:
-profiles:
-active: dev
-datasource:
-url: jdbc:postgresql://localhost:5432/shopdb
-username: ${DB_USERNAME:shop}
-password: ${DB_PASSWORD:secret}
-jpa:
-hibernate:
-ddl-auto: validate
-show-sql: false
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shopdb
+    username: ${DB_USERNAME:shop}
+    password: ${DB_PASSWORD:secret}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always
+  jpa:
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: update
+    show-sql: false
 
 jwt:
-secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971}
-access-token-expiration: 15m
-refresh-token-expiration: 7d
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971}
+  access-token-expiration: 15m
+  refresh-token-expiration: 7d

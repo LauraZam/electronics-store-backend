@@ -1,4 +1,4 @@
-package com.example.shop.controller;
+package com.example.shop.controller.customer;
 
 import com.example.shop.dto.request.ChangePasswordRequest;
 import com.example.shop.dto.request.LoginRequest;
@@ -41,8 +41,10 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
-        authService.logout(request.refreshToken());
+    public ResponseEntity<Void> logout(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails != null) {
+            authService.logout(userDetails.getUsername());
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -51,6 +53,6 @@ public class AuthController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(userDetails.getUsername(), request);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

@@ -7,54 +7,38 @@ import com.example.shop.dto.request.RegisterRequest;
 import com.example.shop.dto.response.AuthResponse;
 import com.example.shop.dto.response.UserResponse;
 import com.example.shop.exception.ResourceNotFoundException;
-import com.example.shop.model.entity.RefreshToken;
 import com.example.shop.model.entity.User;
 import com.example.shop.model.enums.UserRole;
-import com.example.shop.repository.RefreshTokenRepository;
 import com.example.shop.repository.UserRepository;
 import com.example.shop.security.jwt.JwtTokenProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
 @Service
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
-    private final Duration refreshTokenExpiration;
 
-    public AuthService(
-            UserRepository userRepository,
-            RefreshTokenRepository refreshTokenRepository,
-            PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider,
-            AuthenticationManager authenticationManager,
-            @Value("${jwt.refresh-token-expiration:7d}") Duration refreshTokenExpiration) {
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtTokenProvider jwtTokenProvider,
+                       AuthenticationManager authenticationManager) {
         this.userRepository = userRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.authenticationManager = authenticationManager;
-        this.refreshTokenExpiration = refreshTokenExpiration;
     }
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("Email is already in use");
+            throw new IllegalArgumentException("Email уже используется");
         }
 
         User user = new User();
@@ -71,69 +55,53 @@ public class AuthService {
         return mapToUserResponse(saved);
     }
 
-    @Transactional
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );
 
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
 
-        user.setLastLoginAt(LocalDateTime.now());
-        userRepository.save(user);
+        String accessToken = jwtTokenProvider.generateAccessToken(user.getEmail(), user.getRole().name());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
 
-        String accessToken = jwtTokenProvider.generateAccessToken(user);
-        RefreshToken refreshToken = createRefreshToken(user);
-
-        return new AuthResponse(accessToken, refreshToken.getToken(), mapToUserResponse(user));
+        return new AuthResponse(accessToken, refreshToken, "Bearer", mapToUserResponse(user));
     }
 
-    @Transactional
     public AuthResponse refresh(RefreshTokenRequest request) {
-        RefreshToken token = refreshTokenRepository.findByToken(request.refreshToken())
-                .orElseThrow(() -> new BadCredentialsException("Invalid refresh token"));
-
-        if (token.getRevoked() || token.getExpiryDate().isBefore(Instant.now())) {
-            refreshTokenRepository.delete(token);
-            throw new BadCredentialsException("Refresh token has expired or been revoked");
+        String token = request.refreshToken();
+        if (!jwtTokenProvider.validateToken(token)) {
+            throw new IllegalArgumentException("Невалидный refresh token");
         }
 
-        User user = token.getUser();
-        String newAccessToken = jwtTokenProvider.generateAccessToken(user);
+        String email = jwtTokenProvider.getUsernameFromToken(token);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
 
-        return new AuthResponse(newAccessToken, token.getToken(), mapToUserResponse(user));
+        String newAccessToken = jwtTokenProvider.generateAccessToken(user.getEmail(), user.getRole().name());
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
+
+        return new AuthResponse(newAccessToken, newRefreshToken, "Bearer", mapToUserResponse(user));
     }
 
-    @Transactional
-    public void logout(String refreshToken) {
-        refreshTokenRepository.findByToken(refreshToken)
-                .ifPresent(refreshTokenRepository::delete);
+    public void logout(String email) {
+        if (email != null) {
+            System.out.println("Пользователь вышел из системы: " + email);
+        }
     }
 
     @Transactional
     public void changePassword(String email, ChangePasswordRequest request) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
 
-        if (!passwordEncoder.matches(request.oldPassword(), user.getPassword())) {
-            throw new BadCredentialsException("Incorrect current password");
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Неверный текущий пароль");
         }
 
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
-    }
-
-    private RefreshToken createRefreshToken(User user) {
-        refreshTokenRepository.deleteByUser(user);
-
-        RefreshToken token = new RefreshToken();
-        token.setUser(user);
-        token.setToken(UUID.randomUUID().toString());
-        token.setExpiryDate(Instant.now().plus(refreshTokenExpiration));
-        token.setRevoked(false);
-
-        return refreshTokenRepository.save(token);
     }
 
     private UserResponse mapToUserResponse(User user) {
